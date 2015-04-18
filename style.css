@@ -1,0 +1,12 @@
+html {
+	background-color: grey;
+}
+
+canvas {
+	box-shadow: 3px 3px 6px #222222;
+	margin: auto;
+}
+
+h1 {
+	text-align: center;
+}
