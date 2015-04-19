@@ -3,7 +3,7 @@ define([], function() {
 	return {
 
 		WIDTH : 800,
-		HEIGHT : 600,
+		HEIGHT : 576,
 
 		PLAYER_SPEED: 64,
 

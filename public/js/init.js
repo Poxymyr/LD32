@@ -1,66 +1,79 @@
-require(["const"], function(CONST) {
+require(["const", ], function(CONST) {
 
 	var game = new Phaser.Game(CONST.WIDTH, CONST.HEIGHT, Phaser.AUTO, 'game', { preload: preload, create: create, update: update});
 
-	var player, cursors, lightCanvas,
+	var player, walls, cursors, lightCanvas, baseSegments,
 		isPlayerTurn = true,
-		polygons = [];
+		polygons = [],
+		map, layer;
 
 	function preload() {
 		game.load.image('player', 'public/assets/player.png');
+		game.load.image('wall', 'public/assets/wall.png');
+		game.load.tilemap('map', 'public/assets/map.json', null, Phaser.Tilemap.TILED_JSON);
 	}
 
 	function create() {
-		player = game.add.sprite(CONST.TILE_SIZE*10, CONST.TILE_SIZE*10, 'player');
+		player = game.add.sprite(CONST.TILE_SIZE*11.5, CONST.TILE_SIZE*10.5, 'player');
 		player.anchor = {x: 0.5, y: 0.5};
 		player.grid = {
-			x: 10,
-			y: 10
+			x: 11.5,
+			y: 10.5
 		};
 		player.direction = "up";
+
+		walls = game.add.group();
 
 		cursors = game.input.keyboard.createCursorKeys();
 
 		lightCanvas = game.add.graphics(0,0);
 		polygons.push([[-1,-1],[CONST.WIDTH+1,-1],[CONST.WIDTH+1,CONST.HEIGHT+1],[-1,CONST.HEIGHT+1]]);
-		polygons.push([[250,100],[260,140],[240,140]]);
+
+		map = game.add.tilemap('map');
+		map.addTilesetImage('wall');
+		layer = map.createLayer('Wall layer');
+	    layer.resizeWorld();
+	    map.forEach(createPolygon, this, 0, 0, CONST.WIDTH, CONST.HEIGHT, "Wall layer");
+
+		baseSegments = VisibilityPolygon.convertToSegments(polygons);
+		baseSegments = VisibilityPolygon.breakIntersections(baseSegments);
 	}
 
 	function update() {
 		if(isPlayerTurn){
 			if (cursors.left.isDown)
 			{
-				if(player.direction == "left") {
+				if(player.direction == "left" && map.getTileWorldXY(player.x - CONST.TILE_SIZE, player.y, CONST.TILE_SIZE, CONST.TILE_SIZE, "Wall layer") == null) {
 					movePlayerTo("left");
 				}
-				else if(player.direction != "right"){
+				else if(player.direction == "up" || player.direction == "down"){
 					rotatePlayerTo("left");
 				}
 			}
 			else if (cursors.right.isDown)
 			{
-				if(player.direction == "right"){
+				if(player.direction == "right"&& map.getTileWorldXY(player.x + CONST.TILE_SIZE, player.y, CONST.TILE_SIZE, CONST.TILE_SIZE, "Wall layer") == null){
 					movePlayerTo("right");					
 				}
-				else if(player.direction != "left"){
+				else if(player.direction == "up" || player.direction == "down"){
 					rotatePlayerTo("right");
 				}
 			}
 			else if (cursors.down.isDown)
 			{
-				if(player.direction == "down"){
+				if(player.direction == "down"&& map.getTileWorldXY(player.x, player.y + CONST.TILE_SIZE, CONST.TILE_SIZE, CONST.TILE_SIZE, "Wall layer") == null){
 					movePlayerTo("down");
 				}
-				else if(player.direction != "up"){
+				else if(player.direction == "left" || player.direction == "right"){
 					rotatePlayerTo("down");
 				}
 			}
 			else if (cursors.up.isDown)
 			{
-				if(player.direction == "up"){
+				if(player.direction == "up"&& map.getTileWorldXY(player.x, player.y - CONST.TILE_SIZE, CONST.TILE_SIZE, CONST.TILE_SIZE, "Wall layer") == null){
 					movePlayerTo("up");
 				}
-				else if(player.direction != "down"){
+				else if(player.direction == "left" || player.direction == "right"){
 					rotatePlayerTo("up");
 				}
 			}
@@ -93,13 +106,13 @@ require(["const"], function(CONST) {
 		}
 		move.to({x: player.grid.x*CONST.TILE_SIZE, y: player.grid.y*CONST.TILE_SIZE}, 500);
 		move.onComplete.add(function() {
-			isPlayerTurn = true;
+			isPlayerTurn = true; //console.log(map.getTileWorldXY(player.x, player.y, CONST.TILE_SIZE, CONST.TILE_SIZE, "Wall layer"));
 		});
 		move.start();
 	}
 
 	function rotatePlayerTo(direction) {
-		isPlayerTurn = false; console.log(direction);
+		isPlayerTurn = false;
 		var rotate = game.add.tween(player);
 		var newAngle;
 		switch(direction) {
@@ -155,9 +168,31 @@ require(["const"], function(CONST) {
 		lightCanvas.endFill();
 	}
 
+	function createPolygon(tile) {
+		if(tile.index == -1) 
+			return;
+		polygons.push([[tile.worldX,tile.worldY],[tile.worldX+tile.width,tile.worldY],[tile.worldX+tile.width,tile.worldY+tile.height],[tile.worldX,tile.worldY+tile.height]]);
+	}
+
 	function createLightPolygon(x,y){
-		var segments = VisibilityPolygon.convertToSegments(polygons);
-		segments = VisibilityPolygon.breakIntersections(segments);
+		var dynamicSegments = [];
+		var topRight 	= new Phaser.Point(x+2,y-3);
+		var bottomRight = new Phaser.Point(x+2,y+2);
+		var bottomLeft 	= new Phaser.Point(x-2,y+2);
+		var topLeft 	= new Phaser.Point(x-2,y-3);
+
+		Phaser.Point.rotate(topRight, x, y, player.angle, true);
+		Phaser.Point.rotate(bottomRight, x, y, player.angle, true);
+		Phaser.Point.rotate(bottomLeft, x, y, player.angle, true);
+		Phaser.Point.rotate(topLeft, x, y, player.angle, true);
+
+		dynamicSegments.push([[topRight.x,topRight.y], [bottomRight.x,bottomRight.y]]);
+		dynamicSegments.push([[bottomRight.x,bottomRight.y], [bottomLeft.x,bottomLeft.y]]);
+		dynamicSegments.push([[bottomLeft.x,bottomLeft.y], [topLeft.x,topLeft.y]]);
+		dynamicSegments = VisibilityPolygon.breakIntersections(dynamicSegments);
+
+		var segments = baseSegments.concat(dynamicSegments);
+
 		var position = [x, y];
 		if (VisibilityPolygon.inPolygon(position, polygons[0])) {
   			return VisibilityPolygon.compute(position, segments);
